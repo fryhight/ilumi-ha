@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1
+
+**Fixed**
+- The light is no longer reported with an assumed state. Home Assistant then shows one normal switch instead of two lightning buttons (on and off), and the icon takes the colour of the bulb while it is on.
+
 ## 0.6.0
 
 **New**
