@@ -17,7 +17,7 @@ from homeassistant.components.light import (
 )
 from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import BluetoothCallbackMatcher
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
@@ -30,7 +30,15 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import CONF_ADDRESS, CONF_NETWORK_KEY, DOMAIN, EFFECT_SCENE_INDEX
+from .const import (
+    CONF_ADDRESS,
+    CONF_MODEL,
+    CONF_NETWORK_KEY,
+    DOMAIN,
+    EFFECT_SCENE_INDEX,
+    MODEL_A19,
+    MODEL_ICONS,
+)
 from .effects import EFFECT_CANDLE, EFFECT_LIST, EFFECT_NAMES, EFFECTS
 from .manager import IlumiManager, Packet
 from .protocol import (
@@ -60,9 +68,12 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up one light per config entry."""
+    """Set up one light per bulb sub-entry."""
     manager: IlumiManager = hass.data[DOMAIN]["manager"]
-    async_add_entities([IlumiLight(manager, entry)])
+    for subentry_id, subentry in entry.subentries.items():
+        async_add_entities(
+            [IlumiLight(manager, entry, subentry)], config_subentry_id=subentry_id
+        )
 
 
 class IlumiLight(LightEntity, RestoreEntity):
@@ -77,16 +88,21 @@ class IlumiLight(LightEntity, RestoreEntity):
     _attr_supported_features = LightEntityFeature.EFFECT
     _attr_effect_list = EFFECT_LIST
 
-    def __init__(self, manager: IlumiManager, entry: ConfigEntry) -> None:
+    def __init__(
+        self, manager: IlumiManager, entry: ConfigEntry, subentry: ConfigSubentry
+    ) -> None:
         self._manager = manager
-        self._address: str = entry.data[CONF_ADDRESS]
+        self._address: str = subentry.data[CONF_ADDRESS]
         self._network_key: int = entry.data[CONF_NETWORK_KEY]
+        model: str = subentry.data.get(CONF_MODEL, MODEL_A19)
         self._attr_unique_id = format_mac(self._address)
+        self._attr_icon = MODEL_ICONS.get(model)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self._address)},
             connections={(CONNECTION_BLUETOOTH, self._address)},
             manufacturer="Ilumi",
-            name=entry.title,
+            model=model,
+            name=subentry.title,
         )
         self._attr_is_on = False
         self._attr_effect: str | None = None

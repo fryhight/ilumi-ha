@@ -7,6 +7,14 @@ CONF_ADDRESS = "address"
 CONF_NETWORK_KEY = "network_key"
 CONF_NODE_ID = "node_id"
 CONF_SETUP = "setup"
+CONF_MODEL = "model"
+
+SUBENTRY_BULB = "bulb"
+MODEL_A19 = "A19"
+MODEL_BR30 = "BR30"
+MODELS = [MODEL_A19, MODEL_BR30]
+# Icon of the light entity per shape. The tall bulb keeps the default icon.
+MODEL_ICONS = {MODEL_A19: None, MODEL_BR30: "mdi:lightbulb-spot"}
 
 # Taken from PROTOCOL.md of the ilumi-sdk project.
 SERVICE_UUID = "f000f0c0-0451-4000-b000-000000000000"

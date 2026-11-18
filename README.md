@@ -24,16 +24,22 @@ With [HACS](https://hacs.xyz): *HACS → three dots → Custom repositories* →
 
 Manually: copy `custom_components/ilumi` into `/config/custom_components/` and restart.
 
+## Set up
+
+1. *Settings → Devices & services → Add integration → Ilumi Bluetooth Bulbs*. A network key is suggested, keep it. All bulbs share this one key. There is only one Ilumi entry, all bulbs are added under it.
+
 ## Add a bulb
 
 1. Reset the bulb: switch it off and on **five times** in a row. It runs red, green, blue, white. It now has network key 0.
-2. *Settings → Devices & services → Add integration → Ilumi Bluetooth Bulbs*.
+2. On the Ilumi entry click **Add bulb**.
 3. Pick the bulb from the list. The closest bulb has the strongest signal.
-4. Give it a name and leave "Set up the bulb now" ticked. The key is chosen for you. All bulbs share one key, later bulbs reuse the key of the first one.
+4. Give it a name, pick its shape (A19 or BR30) and leave "Set up the bulb now" ticked. The bulb lights up white when it worked.
 
 A bulb that is set up starts bright white without the red-green-blue-white startup animation. A bulb that was never set up (key 0) plays the animation at every power-up.
 
-Untick "Set up the bulb now" only for a bulb that already has the key you enter.
+Untick "Set up the bulb now" only for a bulb that already has the key of the entry. The name and the shape can be changed later on the bulb's own menu. The shape sets the model in the device and a fitting icon for the light.
+
+If you upgrade from 0.2 or 0.3: those versions made one entry per bulb. Delete those entries, add Ilumi once as described above, reset your bulbs (five times off and on) and add them again.
 
 ## Effects
 
@@ -52,9 +58,10 @@ Several bulbs with the same effect do not run in step, each starts when its list
 ## Kurzanleitung (Deutsch)
 
 1. In HACS als benutzerdefiniertes Repository (Typ *Integration*) `https://github.com/fryhight/ilumi-ha` hinzufügen, herunterladen, Home Assistant neu starten.
-2. Neue Birne zurücksetzen: fünfmal schnell aus- und einschalten (Rot, Grün, Blau, Weiß).
-3. *Einstellungen → Geräte & Dienste → Integration hinzufügen → Ilumi Bluetooth Bulbs*, Birne in der Liste wählen, Namen eingeben, das Häkchen "Birne jetzt einrichten" lassen.
-4. Eingerichtete Birnen starten ohne Animation direkt in hellem Weiß. Zurückgesetzte Birnen (Schlüssel 0) spielen die Animation bei jedem Einschalten ab.
+2. *Einstellungen → Geräte & Dienste → Integration hinzufügen → Ilumi Bluetooth Bulbs*. Den vorgeschlagenen Schlüssel behalten. Es gibt nur einen Ilumi-Eintrag.
+3. Neue Birne zurücksetzen: fünfmal schnell aus- und einschalten (Rot, Grün, Blau, Weiß).
+4. Am Ilumi-Eintrag auf **Birne hinzufügen** klicken, Birne in der Liste wählen, Namen und Form (A19 oder BR30) wählen, das Häkchen "Birne jetzt einrichten" lassen.
+5. Eingerichtete Birnen starten ohne Animation direkt in hellem Weiß. Zurückgesetzte Birnen (Schlüssel 0) spielen die Animation bei jedem Einschalten ab.
 
 Effekte (Aurora, Ozean, Feuerwerk, Kerze und mehr) wählst du im Dialog der Lampe unter *Effekt*. Die Birne spielt sie selbst ab.
 
