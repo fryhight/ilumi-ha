@@ -85,7 +85,6 @@ class IlumiLight(LightEntity, RestoreEntity):
     _attr_has_entity_name = True
     _attr_name = None
     _attr_should_poll = False
-    _attr_assumed_state = True
     _attr_color_mode = ColorMode.RGBW
     _attr_supported_color_modes = {ColorMode.RGBW}
     _attr_supported_features = LightEntityFeature.EFFECT
