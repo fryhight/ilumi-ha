@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+**Changed**
+- When **Add bulb** does not recognise a bulb by its Bluetooth name, it now lists all Bluetooth devices that Home Assistant hears (strongest signal first, unnamed ones marked) instead of showing an empty address field. There is also a "Show all Bluetooth devices" entry in the normal list. That shows at once whether Home Assistant hears a bulb and under which name.
+
 ## 0.4.0
 
 One entry for all bulbs. Contains everything from 0.3.0 too, which was never released on its own.

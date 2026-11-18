@@ -5,6 +5,7 @@ share. Each bulb is then added as a sub-entry of that entry.
 """
 from __future__ import annotations
 
+import logging
 import random
 import re
 from typing import Any
@@ -48,10 +49,15 @@ from .const import (
 from .manager import async_get_manager
 from .protocol import commission, set_color
 
+_LOGGER = logging.getLogger(__name__)
+
 _MAC_RE = re.compile(r"^([0-9A-F]{2}:){5}[0-9A-F]{2}$")
 
-# Option value for "type the address in myself". Cannot clash with an address.
+# Option values that cannot clash with an address.
 MANUAL = "manual_entry"
+SHOW_ALL = "show_all"
+# How many devices the "all devices" list shows, strongest signal first.
+MAX_ALL_DEVICES = 30
 
 
 def looks_like_ilumi(name: str | None) -> bool:
@@ -141,38 +147,75 @@ class BulbSubentryFlow(ConfigSubentryFlow):
         used = [sub.data.get(CONF_NODE_ID, 0) for sub in entry.subentries.values()]
         return max(used, default=0) + 1
 
+    def _label(self, german: str, english: str) -> str:
+        return german if str(self.hass.config.language).startswith("de") else english
+
+    def _heard(self) -> list[BluetoothServiceInfoBleak]:
+        """Everything connectable that Home Assistant hears, strongest first."""
+        configured = self._configured()
+        infos = [
+            info
+            for info in async_discovered_service_info(self.hass, connectable=True)
+            if format_mac(info.address) not in configured
+        ]
+        return sorted(infos, key=lambda info: info.rssi, reverse=True)
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Pick a bulb from the ones that were heard nearby."""
+        """Pick a bulb from the ones that were heard nearby.
+
+        Bulbs are recognised by their name. If none is recognised, all
+        devices that are heard are listed instead, so that the person can see
+        what Home Assistant hears and pick the bulb by its address.
+        """
         if user_input is not None:
             choice = user_input[CONF_ADDRESS]
             if choice == MANUAL:
                 return await self.async_step_manual()
+            if choice == SHOW_ALL:
+                return await self._async_show_list(show_all=True)
             info = self._candidates.get(choice)
             self._address = choice
-            self._default_name = info.name if info is not None else ""
+            self._default_name = (info.name if info is not None else "") or ""
             return await self.async_step_details()
 
-        configured = self._configured()
-        self._candidates = {
-            info.address: info
-            for info in async_discovered_service_info(self.hass, connectable=True)
-            if looks_like_ilumi(info.name)
-            and format_mac(info.address) not in configured
-        }
-        if not self._candidates:
+        return await self._async_show_list(show_all=False)
+
+    async def _async_show_list(self, show_all: bool) -> SubentryFlowResult:
+        heard = self._heard()
+        _LOGGER.debug("Ilumi: %s connectable devices heard", len(heard))
+        bulbs = [info for info in heard if looks_like_ilumi(info.name)]
+        if not bulbs and not show_all:
+            show_all = True
+        shown = heard[:MAX_ALL_DEVICES] if show_all else bulbs
+        if not shown:
             return await self.async_step_manual()
+        self._candidates = {info.address: info for info in shown}
 
         options = [
             SelectOptionDict(
-                value=address, label=f"{info.name} ({address}, {info.rssi} dBm)"
+                value=info.address,
+                label=f"{info.name or self._label('ohne Namen', 'no name')} "
+                f"({info.address}, {info.rssi} dBm)",
             )
-            for address, info in sorted(
-                self._candidates.items(), key=lambda item: item[1].rssi, reverse=True
-            )
+            for info in shown
         ]
-        options.append(SelectOptionDict(value=MANUAL, label="Enter address manually"))
+        if not show_all:
+            options.append(
+                SelectOptionDict(
+                    value=SHOW_ALL,
+                    label=self._label(
+                        "Alle Bluetooth-Geräte zeigen", "Show all Bluetooth devices"
+                    ),
+                )
+            )
+        options.append(
+            SelectOptionDict(
+                value=MANUAL,
+                label=self._label("Adresse selbst eingeben", "Enter address manually"),
+            )
+        )
         schema = vol.Schema(
             {
                 vol.Required(CONF_ADDRESS): SelectSelector(
