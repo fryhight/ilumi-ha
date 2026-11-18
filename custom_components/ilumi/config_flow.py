@@ -82,14 +82,22 @@ def advertises_service(info: BluetoothServiceInfoBleak) -> bool:
 
 
 def advert_details(info: BluetoothServiceInfoBleak) -> str:
-    """What else a device without a name sends, so that bulbs can be told apart."""
+    """What a bulb sends besides its address, to tell the shapes apart.
+
+    Shows the manufacturer data and service data as hex. If A19 and BR30 bulbs
+    send different bytes, the shape can be read from them.
+    """
     parts = []
-    manufacturers = getattr(info, "manufacturer_data", None) or {}
-    if manufacturers:
-        parts.append("mfr " + ",".join(f"{int(k):04x}" for k in manufacturers))
+    for key, data in (getattr(info, "manufacturer_data", None) or {}).items():
+        parts.append(f"mfr {int(key):04x}:{bytes(data).hex()}")
+    for key, data in (getattr(info, "service_data", None) or {}).items():
+        parts.append(f"svc {str(key)[:8]}:{bytes(data).hex()}")
     uuids = getattr(info, "service_uuids", None) or []
     if uuids:
         parts.append("uuid " + ",".join(str(u)[:8] for u in uuids[:3]))
+    tx = getattr(info, "tx_power", None)
+    if tx is not None:
+        parts.append(f"tx {tx}")
     return f" [{'; '.join(parts)}]" if parts else ""
 
 
@@ -182,6 +190,13 @@ class BulbSubentryFlow(ConfigSubentryFlow):
     def _label(self, german: str, english: str) -> str:
         return german if str(self.hass.config.language).startswith("de") else english
 
+    def _display_name(self, info: BluetoothServiceInfoBleak) -> str:
+        if has_name(info):
+            return info.name
+        if advertises_service(info):
+            return self._label("Ilumi-Birne", "Ilumi bulb")
+        return self._label("ohne Namen", "no name")
+
     def _heard(self) -> list[BluetoothServiceInfoBleak]:
         """Everything connectable that Home Assistant hears, strongest first."""
         configured = self._configured()
@@ -209,7 +224,12 @@ class BulbSubentryFlow(ConfigSubentryFlow):
                 return await self._async_show_list(show_all=True)
             info = self._candidates.get(choice)
             self._address = choice
-            self._default_name = info.name if info is not None and has_name(info) else ""
+            if info is not None and has_name(info):
+                self._default_name = info.name
+            elif info is not None and advertises_service(info):
+                self._default_name = "Ilumi"
+            else:
+                self._default_name = ""
             return await self.async_step_details()
 
         return await self._async_show_list(show_all=False)
@@ -261,9 +281,8 @@ class BulbSubentryFlow(ConfigSubentryFlow):
         options = [
             SelectOptionDict(
                 value=info.address,
-                label=f"{info.name if has_name(info) else self._label('ohne Namen', 'no name')} "
-                f"({info.address}, {info.rssi} dBm)"
-                + ("" if has_name(info) else advert_details(info)),
+                label=f"{self._display_name(info)} "
+                f"({info.address}, {info.rssi} dBm){advert_details(info)}",
             )
             for info in shown
         ]

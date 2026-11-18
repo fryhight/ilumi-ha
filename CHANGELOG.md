@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4
+
+**Changed**
+- **Add bulb:** a bulb recognised by its advertised service but without a heard name is listed as "Ilumi bulb" (not "no name"), and the name field is pre-filled with "Ilumi".
+- The list shows the raw advertisement data of a device as hex (manufacturer data, service data, TX power). This is meant to find out whether A19 and BR30 bulbs send different bytes, so that the shape could be read automatically later.
+
 ## 0.4.3
 
 **Changed**
