@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.5
+
+**Changed**
+- All texts are English now. The German translation and the German labels in the bulb list are gone, Home Assistant shows the English texts in every language.
+
 ## 0.4.4
 
 **Changed**

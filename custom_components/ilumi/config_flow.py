@@ -187,15 +187,12 @@ class BulbSubentryFlow(ConfigSubentryFlow):
         used = [sub.data.get(CONF_NODE_ID, 0) for sub in entry.subentries.values()]
         return max(used, default=0) + 1
 
-    def _label(self, german: str, english: str) -> str:
-        return german if str(self.hass.config.language).startswith("de") else english
-
     def _display_name(self, info: BluetoothServiceInfoBleak) -> str:
         if has_name(info):
             return info.name
         if advertises_service(info):
-            return self._label("Ilumi-Birne", "Ilumi bulb")
-        return self._label("ohne Namen", "no name")
+            return "Ilumi bulb"
+        return "no name"
 
     def _heard(self) -> list[BluetoothServiceInfoBleak]:
         """Everything connectable that Home Assistant hears, strongest first."""
@@ -290,15 +287,13 @@ class BulbSubentryFlow(ConfigSubentryFlow):
             options.append(
                 SelectOptionDict(
                     value=SHOW_ALL,
-                    label=self._label(
-                        "Alle Bluetooth-Geräte zeigen", "Show all Bluetooth devices"
-                    ),
+                    label="Show all Bluetooth devices",
                 )
             )
         options.append(
             SelectOptionDict(
                 value=MANUAL,
-                label=self._label("Adresse selbst eingeben", "Enter address manually"),
+                label="Enter address manually",
             )
         )
         schema = vol.Schema(

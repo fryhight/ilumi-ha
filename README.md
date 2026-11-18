@@ -2,8 +2,6 @@
 
 Local control of the Ilumi Bluetooth bulbs (Kickstarter "Ilumi", the vendor and its app are gone) in Home Assistant. No cloud, no account, no MQTT, no extra hardware. The bulbs are reached through Home Assistant's own Bluetooth, which includes ESPHome Bluetooth proxies.
 
-*Ilumi-Bluetooth-Birnen lokal in Home Assistant steuern, ohne Cloud, ohne Konto, ohne MQTT. Die deutsche Kurzanleitung steht unten.*
-
 ## Features
 
 - RGBW colour and brightness, on/off, assumed state
@@ -54,15 +52,3 @@ Several bulbs with the same effect do not run in step, each starts when its list
 - A very short power cut may go unnoticed. Home Assistant then still shows the old state until the next command.
 - Setting up writes a network key into the bulb. The protocol is taken from the reverse-engineered [ilumi-sdk](https://github.com/GimpyHand/ilumi-sdk), which warns that wrong setup commands can lock a bulb for good. This integration sends exactly the command that SDK sends.
 - Not affiliated with Ilumi. The logo belongs to its owners.
-
-## Kurzanleitung (Deutsch)
-
-1. In HACS als benutzerdefiniertes Repository (Typ *Integration*) `https://github.com/fryhight/ilumi-ha` hinzufügen, herunterladen, Home Assistant neu starten.
-2. *Einstellungen → Geräte & Dienste → Integration hinzufügen → Ilumi Bluetooth Bulbs*. Den vorgeschlagenen Schlüssel behalten. Es gibt nur einen Ilumi-Eintrag.
-3. Neue Birne zurücksetzen: fünfmal schnell aus- und einschalten (Rot, Grün, Blau, Weiß).
-4. Am Ilumi-Eintrag auf **Birne hinzufügen** klicken, Birne in der Liste wählen, Namen und Form (A19 oder BR30) wählen, das Häkchen "Birne jetzt einrichten" lassen.
-5. Eingerichtete Birnen starten ohne Animation direkt in hellem Weiß. Zurückgesetzte Birnen (Schlüssel 0) spielen die Animation bei jedem Einschalten ab.
-
-Effekte (Aurora, Ozean, Feuerwerk, Kerze und mehr) wählst du im Dialog der Lampe unter *Effekt*. Die Birne spielt sie selbst ab.
-
-Alle Birnen teilen sich einen Schlüssel. Er wird dir beim ersten Mal vorgeschlagen und danach wiederverwendet.
