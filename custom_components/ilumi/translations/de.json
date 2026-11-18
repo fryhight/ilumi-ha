@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Ilumi-Birne hinzufügen",
+        "description": "Diese Birnen wurden in der Nähe gefunden. Eine neue Birne vorher zurücksetzen (fünfmal aus- und einschalten, sie läuft Rot, Grün, Blau, Weiß). Die nächste Birne hat das stärkste Signal.",
+        "data": {
+          "address": "Birne"
+        }
+      },
+      "details": {
+        "title": "Birne einrichten",
+        "description": "Eine zurückgesetzte Birne wird mit dem Netzwerkschlüssel unten eingerichtet. Alle deine Birnen teilen sich diesen einen Schlüssel, er wird für dich gewählt. Das Häkchen nur bei einer Birne entfernen, die diesen Schlüssel schon hat.",
+        "data": {
+          "name": "Name",
+          "network_key": "Netzwerkschlüssel",
+          "setup": "Birne jetzt einrichten"
+        }
+      },
+      "manual": {
+        "title": "Ilumi-Birne per Adresse hinzufügen",
+        "description": "Gib die Bluetooth-Adresse ein. Eine zurückgesetzte Birne wird mit dem Netzwerkschlüssel unten eingerichtet. Das Häkchen nur bei einer Birne entfernen, die diesen Schlüssel schon hat.",
+        "data": {
+          "address": "Bluetooth-Adresse",
+          "name": "Name",
+          "network_key": "Netzwerkschlüssel",
+          "setup": "Birne jetzt einrichten"
+        }
+      }
+    },
+    "error": {
+      "invalid_address": "Keine gültige Bluetooth-Adresse, erwartet wird etwas wie E1:71:DA:73:0A:E1.",
+      "invalid_key": "Der Netzwerkschlüssel muss eine ganze Zahl zwischen 0 und 4294967295 sein.",
+      "key_zero": "Der Schlüssel 0 kann nicht in eine Birne geschrieben werden. Nimm eine andere Zahl oder entferne das Häkchen bei der Einrichtung.",
+      "cannot_connect": "Die Birne war nicht erreichbar. Rück sie näher an einen Bluetooth-Adapter oder Proxy und versuch es noch einmal."
+    },
+    "abort": {
+      "already_configured": "Diese Birne ist schon eingerichtet."
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Ilumi bulb",
+        "description": "These bulbs were found nearby. Reset a new bulb first (switch it off and on five times, it runs red, green, blue, white). The closest bulb has the strongest signal.",
+        "data": {
+          "address": "Bulb"
+        }
+      },
+      "details": {
+        "title": "Set up the bulb",
+        "description": "A reset bulb is set up with the network key below. All your bulbs share this one key, it is chosen for you. Untick the box only for a bulb that already has this key.",
+        "data": {
+          "name": "Name",
+          "network_key": "Network key",
+          "setup": "Set up the bulb now"
+        }
+      },
+      "manual": {
+        "title": "Add Ilumi bulb by address",
+        "description": "Enter the Bluetooth address. A reset bulb is set up with the network key below. Untick the box only for a bulb that already has this key.",
+        "data": {
+          "address": "Bluetooth address",
+          "name": "Name",
+          "network_key": "Network key",
+          "setup": "Set up the bulb now"
+        }
+      }
+    },
+    "error": {
+      "invalid_address": "Not a valid Bluetooth address, expected something like E1:71:DA:73:0A:E1.",
+      "invalid_key": "The network key must be a whole number between 0 and 4294967295.",
+      "key_zero": "Key 0 cannot be written to a bulb. Use another number or untick the setup box.",
+      "cannot_connect": "The bulb could not be reached. Move it closer to a Bluetooth adapter or proxy and try again."
+    },
+    "abort": {
+      "already_configured": "This bulb is already set up."
+    }
+  }
+}
