@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
@@ -23,6 +24,7 @@ from homeassistant.helpers.device_registry import (
     format_mac,
 )
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import CONF_ADDRESS, CONF_NETWORK_KEY, DOMAIN
@@ -36,6 +38,11 @@ _LOGGER = logging.getLogger(__name__)
 # back, so Adaptive Lighting sees an "on" light and sets the right colour.
 POWER_UP_RGBW = (0, 0, 0, 255)
 POWER_UP_BRIGHTNESS = 255
+
+# Home Assistant only calls our advertisement callback when an advertisement
+# differs from the previous one, so a bulb that comes back with the same data
+# would never be noticed. This check asks directly instead.
+PRESENCE_CHECK_SECONDS = 15
 
 
 async def async_setup_entry(
@@ -100,6 +107,13 @@ class IlumiLight(LightEntity, RestoreEntity):
                 bluetooth.BluetoothScanningMode.ACTIVE,
             )
         )
+        self.async_on_remove(
+            async_track_time_interval(
+                self.hass,
+                self._async_check_presence,
+                timedelta(seconds=PRESENCE_CHECK_SECONDS),
+            )
+        )
         last = await self.async_get_last_state()
         if last is None:
             return
@@ -113,6 +127,17 @@ class IlumiLight(LightEntity, RestoreEntity):
         self._want_on = self._attr_is_on
         self._want_brightness = self._attr_brightness
         self._want_rgbw = self._attr_rgbw_color  # type: ignore[assignment]
+
+    @callback
+    def _async_check_presence(self, _now: datetime) -> None:
+        """Safety net next to the two callbacks: ask whether the bulb is heard."""
+        present = bluetooth.async_address_present(
+            self.hass, self._address, connectable=True
+        )
+        if present and not self._attr_available:
+            self._async_bulb_seen(None, None)
+        elif not present and self._attr_available:
+            self._async_bulb_gone(None)
 
     @callback
     def _async_bulb_gone(self, _info: Any) -> None:
