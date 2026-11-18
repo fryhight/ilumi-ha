@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2
+
+**Fixed**
+- **Add bulb** did not list bulbs whose Bluetooth name Home Assistant had not heard (it then shows the address in place of the name). The dialog now asks for five seconds of active scanning before it builds the list, because names are only sent in the scan response. If no bulb with a name is found, the list shows the devices without a name, not every device nearby. "Show all Bluetooth devices" is still there.
+
 ## 0.4.1
 
 **Changed**

@@ -5,6 +5,7 @@ share. Each bulb is then added as a sub-entry of that entry.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
 import re
@@ -13,8 +14,11 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components.bluetooth import (
+    BluetoothCallbackMatcher,
+    BluetoothScanningMode,
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
+    async_register_callback,
 )
 from homeassistant.config_entries import (
     ConfigEntry,
@@ -58,6 +62,9 @@ MANUAL = "manual_entry"
 SHOW_ALL = "show_all"
 # How many devices the "all devices" list shows, strongest signal first.
 MAX_ALL_DEVICES = 30
+# A bulb's name is in its scan response, which scanners only ask for when
+# active scanning is requested. The list is built after this many seconds.
+SCAN_SECONDS = 5
 
 
 def looks_like_ilumi(name: str | None) -> bool:
@@ -65,6 +72,11 @@ def looks_like_ilumi(name: str | None) -> bool:
     if not name:
         return False
     return "ilumi" in name.lower() or name.startswith("L0") or name.startswith("Nrdic")
+
+
+def has_name(info: BluetoothServiceInfoBleak) -> bool:
+    """Home Assistant puts the address in place of a name that was not heard."""
+    return bool(info.name) and info.name.upper() != info.address.upper()
 
 
 def _parse_key(raw: str) -> int | None:
@@ -134,6 +146,7 @@ class BulbSubentryFlow(ConfigSubentryFlow):
         self._candidates: dict[str, BluetoothServiceInfoBleak] = {}
         self._address: str = ""
         self._default_name: str = ""
+        self._scanned = False
 
     def _configured(self) -> set[str]:
         entry = self._get_entry()
@@ -177,18 +190,47 @@ class BulbSubentryFlow(ConfigSubentryFlow):
                 return await self._async_show_list(show_all=True)
             info = self._candidates.get(choice)
             self._address = choice
-            self._default_name = (info.name if info is not None else "") or ""
+            self._default_name = info.name if info is not None and has_name(info) else ""
             return await self.async_step_details()
 
         return await self._async_show_list(show_all=False)
 
+    async def _async_scan(self) -> None:
+        """Ask for active scanning for a few seconds, so that names are heard."""
+
+        def _ignore(_info: BluetoothServiceInfoBleak, _change: Any) -> None:
+            """Only the request for active scanning matters, not the data."""
+
+        cancel = async_register_callback(
+            self.hass,
+            _ignore,
+            BluetoothCallbackMatcher(connectable=True),
+            BluetoothScanningMode.ACTIVE,
+        )
+        try:
+            await asyncio.sleep(SCAN_SECONDS)
+        finally:
+            cancel()
+
     async def _async_show_list(self, show_all: bool) -> SubentryFlowResult:
+        if not self._scanned:
+            self._scanned = True
+            await self._async_scan()
         heard = self._heard()
         _LOGGER.debug("Ilumi: %s connectable devices heard", len(heard))
         bulbs = [info for info in heard if looks_like_ilumi(info.name)]
-        if not bulbs and not show_all:
-            show_all = True
-        shown = heard[:MAX_ALL_DEVICES] if show_all else bulbs
+        unnamed = [info for info in heard if not has_name(info)]
+        if show_all:
+            shown = heard[:MAX_ALL_DEVICES]
+        elif bulbs:
+            shown = bulbs
+        else:
+            # No bulb with a name. A bulb whose name was not heard looks like
+            # any unnamed device, so those are offered, other named devices not.
+            shown = unnamed
+            show_all = not shown
+            if show_all:
+                shown = heard[:MAX_ALL_DEVICES]
         if not shown:
             return await self.async_step_manual()
         self._candidates = {info.address: info for info in shown}
@@ -196,7 +238,7 @@ class BulbSubentryFlow(ConfigSubentryFlow):
         options = [
             SelectOptionDict(
                 value=info.address,
-                label=f"{info.name or self._label('ohne Namen', 'no name')} "
+                label=f"{info.name if has_name(info) else self._label('ohne Namen', 'no name')} "
                 f"({info.address}, {info.rssi} dBm)",
             )
             for info in shown
