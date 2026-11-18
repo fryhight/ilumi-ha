@@ -81,26 +81,6 @@ def advertises_service(info: BluetoothServiceInfoBleak) -> bool:
     return SERVICE_UUID in [str(u).lower() for u in uuids]
 
 
-def advert_details(info: BluetoothServiceInfoBleak) -> str:
-    """What a bulb sends besides its address, to tell the shapes apart.
-
-    Shows the manufacturer data and service data as hex. If A19 and BR30 bulbs
-    send different bytes, the shape can be read from them.
-    """
-    parts = []
-    for key, data in (getattr(info, "manufacturer_data", None) or {}).items():
-        parts.append(f"mfr {int(key):04x}:{bytes(data).hex()}")
-    for key, data in (getattr(info, "service_data", None) or {}).items():
-        parts.append(f"svc {str(key)[:8]}:{bytes(data).hex()}")
-    uuids = getattr(info, "service_uuids", None) or []
-    if uuids:
-        parts.append("uuid " + ",".join(str(u)[:8] for u in uuids[:3]))
-    tx = getattr(info, "tx_power", None)
-    if tx is not None:
-        parts.append(f"tx {tx}")
-    return f" [{'; '.join(parts)}]" if parts else ""
-
-
 def has_name(info: BluetoothServiceInfoBleak) -> bool:
     """Home Assistant puts the address in place of a name that was not heard."""
     return bool(info.name) and info.name.upper() != info.address.upper()
@@ -279,7 +259,7 @@ class BulbSubentryFlow(ConfigSubentryFlow):
             SelectOptionDict(
                 value=info.address,
                 label=f"{self._display_name(info)} "
-                f"({info.address}, {info.rssi} dBm){advert_details(info)}",
+                f"({info.address}, {info.rssi} dBm)",
             )
             for info in shown
         ]

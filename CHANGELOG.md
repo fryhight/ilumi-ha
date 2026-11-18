@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.6
+
+**Changed**
+- **Add bulb:** the raw advertisement data is no longer shown in the list. It turned out that a bulb sends changing message types, so the bulb shape cannot be read from it. The shape stays a choice (A19 or BR30) when adding a bulb.
+
 ## 0.4.5
 
 **Changed**
