@@ -11,6 +11,7 @@ Local control of the Ilumi Bluetooth bulbs (Kickstarter "Ilumi", the vendor and 
 - Bulbs are set up from Home Assistant itself: reset a bulb, pick it from the list, done
 - One Bluetooth connection at a time, picks the best adapter or proxy by itself
 - A bulb that loses power becomes unavailable and comes back as "on, bright white"
+- Effects: the 17 effects of the original app (aurora, ocean, fireworks, ...) and a candle mode, chosen in the light's *Effect* menu. The bulb stores and plays them itself
 
 ## Requirements
 
@@ -34,6 +35,12 @@ A bulb that is set up starts bright white without the red-green-blue-white start
 
 Untick "Set up the bulb now" only for a bulb that already has the key you enter.
 
+## Effects
+
+Open a light and pick an effect. The integration sends the colour list to the bulb once, the bulb then plays it on its own and keeps playing it until you choose a colour, another effect or switch it off. The brightness slider dims the effect. *Candle* flickers in the colour you chose.
+
+Several bulbs with the same effect do not run in step, each starts when its list arrives. The effect colour lists are taken from [ilumi-sdk](https://github.com/GimpyHand/ilumi-sdk) (MIT licence), which took them from the original app.
+
 ## Notes and limits
 
 - The state is assumed. The bulb is not read back.
@@ -48,5 +55,7 @@ Untick "Set up the bulb now" only for a bulb that already has the key you enter.
 2. Neue Birne zurücksetzen: fünfmal schnell aus- und einschalten (Rot, Grün, Blau, Weiß).
 3. *Einstellungen → Geräte & Dienste → Integration hinzufügen → Ilumi Bluetooth Bulbs*, Birne in der Liste wählen, Namen eingeben, das Häkchen "Birne jetzt einrichten" lassen.
 4. Eingerichtete Birnen starten ohne Animation direkt in hellem Weiß. Zurückgesetzte Birnen (Schlüssel 0) spielen die Animation bei jedem Einschalten ab.
+
+Effekte (Aurora, Ozean, Feuerwerk, Kerze und mehr) wählst du im Dialog der Lampe unter *Effekt*. Die Birne spielt sie selbst ab.
 
 Alle Birnen teilen sich einen Schlüssel. Er wird dir beim ersten Mal vorgeschlagen und danach wiederverwendet.

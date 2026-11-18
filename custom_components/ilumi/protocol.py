@@ -8,7 +8,8 @@ Layout (see PROTOCOL.md of the ilumi-sdk project):
     byte  5    command type
     bytes 6..  payload
 
-All packets built here are at most 13 bytes, so no chunking is needed.
+Single packets are at most 13 bytes. Only the colour pattern upload is longer
+than one 20 byte write and is split into chunks (see pattern_packets).
 """
 from __future__ import annotations
 
@@ -17,6 +18,10 @@ import struct
 CMD_SET_COLOR = 0
 CMD_TURN_ON = 4
 CMD_TURN_OFF = 5
+CMD_SET_COLOR_PATTERN = 7
+CMD_START_COLOR_PATTERN = 8
+CMD_CANDLE_MODE = 35
+CMD_DATA_CHUNK = 52
 CMD_COMMISSION_WITH_ID = 58
 
 
@@ -62,6 +67,71 @@ def set_color(
     return pack_header(network_key, seq, CMD_SET_COLOR) + struct.pack(
         "<7B", _clamp(r), _clamp(g), _clamp(b), _clamp(w), _clamp(brightness), 0, 0
     )
+
+
+def candle_mode(
+    network_key: int, seq: int, r: int, g: int, b: int, w: int, brightness: int
+) -> bytes:
+    """CANDLE_MODE: flickering light in the given colour."""
+    return pack_header(network_key, seq, CMD_CANDLE_MODE) + struct.pack(
+        "<7B", _clamp(r), _clamp(g), _clamp(b), _clamp(w), _clamp(brightness), 0, 0
+    )
+
+
+def start_pattern(network_key: int, seq: int, scene_idx: int) -> bytes:
+    """START_COLOR_PATTERN for a pattern that is already stored in the bulb."""
+    return pack_header(network_key, seq, CMD_START_COLOR_PATTERN) + struct.pack(
+        "<B", scene_idx
+    )
+
+
+def pattern_packets(
+    network_key: int,
+    seq: int,
+    scene_idx: int,
+    frames,
+    brightness_scale: int = 255,
+    repeatable: int = 255,
+    start_now: int = 1,
+) -> list[bytes]:
+    """Upload a colour pattern (a list of frames) and return the packets to write.
+
+    Same layout as the SDK's set_color_pattern. The whole message is longer
+    than 20 bytes, so it travels as DATA_CHUNK packets: each carries the
+    total length, its offset and 10 bytes of the message (zero padded). The
+    packets use consecutive sequence numbers, seq, seq+2, ... : the first
+    one is for the message itself, the others for its chunks.
+
+    brightness_scale (0-255) dims every frame, 255 leaves them as they are.
+    """
+    frame_bytes = bytearray()
+    for f in frames:
+        level = _clamp(f.get("brightness", 255) * _clamp(brightness_scale) // 255)
+        frame_bytes += struct.pack(
+            "<6B",
+            _clamp(f.get("r", 0)),
+            _clamp(f.get("g", 0)),
+            _clamp(f.get("b", 0)),
+            _clamp(f.get("w", 0)),
+            level,
+            0,
+        )
+        frame_bytes += struct.pack(
+            "<IIBBBB", f.get("sustain_ms", 500), f.get("transit_ms", 100), 0, 0, 0, 0
+        )
+    header = pack_header(network_key, seq, CMD_SET_COLOR_PATTERN)
+    scene = struct.pack(
+        "<HBBBBB", 13 + len(frame_bytes), scene_idx, len(frames), repeatable, scene_idx, start_now
+    )
+    message = header + scene + bytes(frame_bytes)
+    packets = []
+    for number, offset in enumerate(range(0, len(message), 10), start=1):
+        chunk = message[offset : offset + 10].ljust(10, b"\0")
+        packets.append(
+            pack_header(network_key, seq + 2 * number, CMD_DATA_CHUNK)
+            + struct.pack("<HH10s", len(message), offset, chunk)
+        )
+    return packets
 
 
 def normalize_for_bulb(rgbw, brightness):

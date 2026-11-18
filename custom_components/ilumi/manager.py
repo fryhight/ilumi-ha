@@ -24,6 +24,8 @@ from homeassistant.helpers.storage import Store
 
 from .const import (
     CHAR_UUID,
+    CHUNK_DONE_SECONDS,
+    CHUNK_GAP_SECONDS,
     DOMAIN,
     COMMAND_GAP_SECONDS,
     IDLE_DISCONNECT_SECONDS,
@@ -34,8 +36,10 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 # A packet is built at send time, because the sequence number is only
-# known once the packet is really next in line.
-PacketFactory = Callable[[int], bytes]
+# known once the packet is really next in line. A factory may return a
+# list of packets (a chunked upload); it can then use the sequence numbers
+# seq, seq+2, ... and the manager skips the ones it used.
+PacketFactory = Callable[[int], "bytes | list[bytes]"]
 Packet = tuple[PacketFactory, bool]  # (factory, write_with_response)
 
 
@@ -84,12 +88,26 @@ class IlumiManager:
             for attempt in range(2):
                 try:
                     client = await self._async_ensure_connected(address)
+                    previous_was_chunked = False
                     for index, (factory, response) in enumerate(packets):
                         if index:
-                            await asyncio.sleep(COMMAND_GAP_SECONDS)
-                        await client.write_gatt_char(
-                            CHAR_UUID, factory(self._next_seq()), response=response
-                        )
+                            await asyncio.sleep(
+                                CHUNK_DONE_SECONDS
+                                if previous_was_chunked
+                                else COMMAND_GAP_SECONDS
+                            )
+                        built = factory(self._next_seq())
+                        items = built if isinstance(built, list) else [built]
+                        if isinstance(built, list):
+                            for _ in built:
+                                self._next_seq()  # one number per chunk
+                        for number, data in enumerate(items):
+                            if number:
+                                await asyncio.sleep(CHUNK_GAP_SECONDS)
+                            await client.write_gatt_char(
+                                CHAR_UUID, data, response=response
+                            )
+                        previous_was_chunked = len(items) > 1
                     last_error = None
                     break
                 except (BleakError, asyncio.TimeoutError, OSError) as err:

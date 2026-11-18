@@ -26,3 +26,9 @@ SEQ_STORAGE_VERSION = 1
 # Group number written into a bulb when it is set up. Nothing in this
 # integration uses groups, the SDK's enroll.py uses 1 as well.
 SETUP_GROUP_ID = 1
+
+# Place in the bulb where the effect is stored, the SDK uses 4 as well.
+EFFECT_SCENE_INDEX = 4
+# Pauses while a colour pattern is uploaded in chunks, taken from the SDK.
+CHUNK_GAP_SECONDS = 0.05
+CHUNK_DONE_SECONDS = 0.5

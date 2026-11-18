@@ -8,9 +8,12 @@ from typing import Any
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
+    ATTR_EFFECT,
     ATTR_RGBW_COLOR,
+    EFFECT_OFF,
     ColorMode,
     LightEntity,
+    LightEntityFeature,
 )
 from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import BluetoothCallbackMatcher
@@ -27,9 +30,16 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import CONF_ADDRESS, CONF_NETWORK_KEY, DOMAIN
+from .const import CONF_ADDRESS, CONF_NETWORK_KEY, DOMAIN, EFFECT_SCENE_INDEX
+from .effects import EFFECT_CANDLE, EFFECT_LIST, EFFECT_NAMES, EFFECTS
 from .manager import IlumiManager, Packet
-from .protocol import normalize_for_bulb, set_color
+from .protocol import (
+    candle_mode,
+    normalize_for_bulb,
+    pattern_packets,
+    set_color,
+    start_pattern,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,6 +74,8 @@ class IlumiLight(LightEntity, RestoreEntity):
     _attr_assumed_state = True
     _attr_color_mode = ColorMode.RGBW
     _attr_supported_color_modes = {ColorMode.RGBW}
+    _attr_supported_features = LightEntityFeature.EFFECT
+    _attr_effect_list = EFFECT_LIST
 
     def __init__(self, manager: IlumiManager, entry: ConfigEntry) -> None:
         self._manager = manager
@@ -77,6 +89,8 @@ class IlumiLight(LightEntity, RestoreEntity):
             name=entry.title,
         )
         self._attr_is_on = False
+        self._attr_effect: str | None = None
+        self._want_effect: str | None = None
         self._attr_brightness = 255
         self._attr_rgbw_color = (255, 255, 255, 0)
         # What the user asked for most recently. The attributes above only
@@ -164,6 +178,8 @@ class IlumiLight(LightEntity, RestoreEntity):
         self._want_on = True
         self._want_rgbw = POWER_UP_RGBW
         self._want_brightness = POWER_UP_BRIGHTNESS
+        self._attr_effect = None
+        self._want_effect = None
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs: Any) -> None:
@@ -172,12 +188,20 @@ class IlumiLight(LightEntity, RestoreEntity):
             self._want_brightness = int(kwargs[ATTR_BRIGHTNESS])
         if ATTR_RGBW_COLOR in kwargs:
             self._want_rgbw = tuple(int(v) for v in kwargs[ATTR_RGBW_COLOR])  # type: ignore[assignment]
+            # A new colour ends a running effect.
+            self._want_effect = None
+        if ATTR_EFFECT in kwargs:
+            effect = kwargs[ATTR_EFFECT]
+            self._want_effect = (
+                None if effect in (None, EFFECT_OFF) else str(effect)
+            )
         self._want_on = True
         await self._async_sync()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off."""
         self._want_on = False
+        self._want_effect = None
         await self._async_sync()
 
     async def _async_sync(self) -> None:
@@ -201,13 +225,34 @@ class IlumiLight(LightEntity, RestoreEntity):
             # scripts do. A separate TURN_ON made the bulb flash its default
             # white before the colour arrived. Off is brightness 0 for the
             # same reason, so on and off use the same command.
+            effect = self._want_effect if want_on else None
+            if effect is not None and effect != EFFECT_CANDLE and effect not in EFFECT_NAMES:
+                _LOGGER.warning("Unknown effect %s ignored", effect)
+                effect = self._want_effect = None
             if want_on:
                 r, g, b, w, level = normalize_for_bulb(rgbw, brightness)
             else:
                 r, g, b, w, level = 0, 0, 0, 0, 0
-            packets: list[Packet] = [
-                (lambda seq: set_color(key, seq, r, g, b, w, level), True)
-            ]
+            if effect is None:
+                packets: list[Packet] = [
+                    (lambda seq: set_color(key, seq, r, g, b, w, level), True)
+                ]
+            elif effect == EFFECT_CANDLE:
+                packets = [
+                    (lambda seq: candle_mode(key, seq, r, g, b, w, level), True)
+                ]
+            else:
+                frames = EFFECTS[EFFECT_NAMES[effect]]
+                scale = brightness
+                packets = [
+                    (
+                        lambda seq: pattern_packets(
+                            key, seq, EFFECT_SCENE_INDEX, frames, scale
+                        ),
+                        True,
+                    ),
+                    (lambda seq: start_pattern(key, seq, EFFECT_SCENE_INDEX), True),
+                ]
 
             try:
                 await self._manager.async_send(self._address, packets)
@@ -215,9 +260,11 @@ class IlumiLight(LightEntity, RestoreEntity):
                 self._want_on = bool(self._attr_is_on)
                 self._want_brightness = self._attr_brightness or 255
                 self._want_rgbw = self._attr_rgbw_color  # type: ignore[assignment]
+                self._want_effect = self._attr_effect
                 raise
 
             self._attr_is_on = want_on
+            self._attr_effect = effect
             if want_on:
                 self._attr_rgbw_color = rgbw
                 self._attr_brightness = brightness
