@@ -57,6 +57,13 @@
             "name": "Name",
             "model": "Shape"
           }
+        },
+        "confirm": {
+          "title": "Is this the bulb?",
+          "description": "The bulb you picked should light up magenta now. If a different bulb lights up, or none does, untick the box to go back to the list. A bulb that does not light up may not have been reset.",
+          "data": {
+            "correct": "Yes, this is the bulb"
+          }
         }
       },
       "error": {

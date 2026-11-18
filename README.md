@@ -30,7 +30,7 @@ Manually: copy `custom_components/ilumi` into `/config/custom_components/` and r
 
 1. Reset the bulb: switch it off and on **five times** in a row. It runs red, green, blue, white. It now has network key 0.
 2. On the Ilumi entry click **Add bulb**.
-3. Pick the bulb from the list. The closest bulb has the strongest signal.
+3. Pick the bulb from the list. The closest bulb has the strongest signal. The bulb you picked lights up magenta, confirm that it is the right one.
 4. Give it a name, pick its shape (A19 or BR30) and leave "Set up the bulb now" ticked. The bulb lights up white when it worked.
 
 A bulb that is set up starts bright white without the red-green-blue-white startup animation. A bulb that was never set up (key 0) plays the animation at every power-up.

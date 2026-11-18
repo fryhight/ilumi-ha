@@ -40,3 +40,8 @@ EFFECT_SCENE_INDEX = 4
 # Pauses while a colour pattern is uploaded in chunks, taken from the SDK.
 CHUNK_GAP_SECONDS = 0.05
 CHUNK_DONE_SECONDS = 0.5
+
+# A bulb you picked in the list lights up in this colour (R, G, B, W, brightness)
+# so that you can see which one it is. A reset bulb obeys key 0.
+IDENTIFY_COLOR = (255, 0, 255, 0, 255)
+RESET_COLOR = (0, 0, 0, 255, 255)

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0
+
+**New**
+- **Add bulb:** the bulb you pick in the list lights up magenta, and the dialog asks "Is this the bulb?". Untick the box to go back to the list, the bulb then turns white again. This tells bulbs apart when several are in range. A bulb that does not light up has probably not been reset.
+
 ## 0.4.6
 
 **Changed**

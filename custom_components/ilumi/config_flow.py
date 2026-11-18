@@ -45,8 +45,10 @@ from .const import (
     CONF_NODE_ID,
     CONF_SETUP,
     DOMAIN,
+    IDENTIFY_COLOR,
     MODEL_A19,
     MODELS,
+    RESET_COLOR,
     SERVICE_UUID,
     SETUP_GROUP_ID,
     SUBENTRY_BULB,
@@ -207,7 +209,7 @@ class BulbSubentryFlow(ConfigSubentryFlow):
                 self._default_name = "Ilumi"
             else:
                 self._default_name = ""
-            return await self.async_step_details()
+            return await self.async_step_confirm()
 
         return await self._async_show_list(show_all=False)
 
@@ -284,6 +286,38 @@ class BulbSubentryFlow(ConfigSubentryFlow):
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema)
+
+    async def _async_light(self, address: str, color: tuple[int, ...]) -> None:
+        """Set a colour on a bulb that was just reset (network key 0)."""
+        manager = await async_get_manager(self.hass)
+        await manager.async_send(
+            address, [(lambda seq: set_color(0, seq, *color), True)]
+        )
+
+    async def async_step_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Light the picked bulb up and ask whether it is the one meant."""
+        if user_input is not None:
+            if user_input["correct"]:
+                return await self.async_step_details()
+            try:
+                await self._async_light(self._address, RESET_COLOR)
+            except HomeAssistantError:
+                pass  # best effort, the person chose another bulb anyway
+            self._address = ""
+            return await self._async_show_list(show_all=False)
+
+        errors: dict[str, str] = {}
+        try:
+            await self._async_light(self._address, IDENTIFY_COLOR)
+        except HomeAssistantError:
+            errors["base"] = "cannot_connect"
+        return self.async_show_form(
+            step_id="confirm",
+            data_schema=vol.Schema({vol.Required("correct", default=True): bool}),
+            errors=errors,
+        )
 
     async def async_step_details(
         self, user_input: dict[str, Any] | None = None
