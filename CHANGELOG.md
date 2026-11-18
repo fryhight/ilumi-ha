@@ -3,7 +3,7 @@
 ## 0.5.0
 
 **New**
-- **Add bulb:** the bulb you pick in the list lights up magenta, and the dialog asks "Is this the bulb?". Untick the box to go back to the list, the bulb then turns white again. This tells bulbs apart when several are in range. A bulb that does not light up has probably not been reset.
+- **Add bulb:** every reset bulb in the list now lights up in its own colour (red, green, blue, yellow, cyan, magenta, violet) and the list shows that colour in front of the address, for example `Red (E1:71:DA:73:0A:E1, -60 dBm)`. Pick the colour of the bulb you want. The other bulbs turn white again. If you close the dialog without picking, the bulbs turn white by themselves. A bulb without a colour was not reset or could not be reached.
 
 ## 0.4.6
 

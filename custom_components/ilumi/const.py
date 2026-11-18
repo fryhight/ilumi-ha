@@ -43,5 +43,17 @@ CHUNK_DONE_SECONDS = 0.5
 
 # A bulb you picked in the list lights up in this colour (R, G, B, W, brightness)
 # so that you can see which one it is. A reset bulb obeys key 0.
-IDENTIFY_COLOR = (255, 0, 255, 0, 255)
+# Colours shown on the bulbs in the "Add bulb" list, one per bulb, so that the
+# person sees which bulb is which. (name, (R, G, B, W, brightness))
+PICK_COLORS = [
+    ("Red", (255, 0, 0, 0, 255)),
+    ("Green", (0, 255, 0, 0, 255)),
+    ("Blue", (0, 0, 255, 0, 255)),
+    ("Yellow", (255, 255, 0, 0, 255)),
+    ("Cyan", (0, 255, 255, 0, 255)),
+    ("Magenta", (255, 0, 255, 0, 255)),
+    ("Violet", (130, 0, 255, 0, 255)),
+]
+# If the dialog is left without picking, coloured bulbs turn white after this.
+PICK_RESET_SECONDS = 60
 RESET_COLOR = (0, 0, 0, 255, 255)

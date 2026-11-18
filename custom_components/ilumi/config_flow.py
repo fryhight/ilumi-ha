@@ -29,6 +29,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
+from homeassistant.helpers.event import async_call_later
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.selector import (
@@ -45,9 +46,10 @@ from .const import (
     CONF_NODE_ID,
     CONF_SETUP,
     DOMAIN,
-    IDENTIFY_COLOR,
     MODEL_A19,
     MODELS,
+    PICK_COLORS,
+    PICK_RESET_SECONDS,
     RESET_COLOR,
     SERVICE_UUID,
     SETUP_GROUP_ID,
@@ -156,6 +158,9 @@ class BulbSubentryFlow(ConfigSubentryFlow):
         self._address: str = ""
         self._default_name: str = ""
         self._scanned = False
+        # address -> colour name, for bulbs that were lit up in the list
+        self._coloured: dict[str, str] = {}
+        self._cancel_reset: Any = None
 
     def _configured(self) -> set[str]:
         entry = self._get_entry()
@@ -209,7 +214,8 @@ class BulbSubentryFlow(ConfigSubentryFlow):
                 self._default_name = "Ilumi"
             else:
                 self._default_name = ""
-            return await self.async_step_confirm()
+            await self._async_reset_colours(keep=choice)
+            return await self.async_step_details()
 
         return await self._async_show_list(show_all=False)
 
@@ -256,11 +262,13 @@ class BulbSubentryFlow(ConfigSubentryFlow):
         if not shown:
             return await self.async_step_manual()
         self._candidates = {info.address: info for info in shown}
+        if not show_all:
+            await self._async_colour(shown)
 
         options = [
             SelectOptionDict(
                 value=info.address,
-                label=f"{self._display_name(info)} "
+                label=f"{self._label_start(info)} "
                 f"({info.address}, {info.rssi} dBm)",
             )
             for info in shown
@@ -294,30 +302,60 @@ class BulbSubentryFlow(ConfigSubentryFlow):
             address, [(lambda seq: set_color(0, seq, *color), True)]
         )
 
-    async def async_step_confirm(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Light the picked bulb up and ask whether it is the one meant."""
-        if user_input is not None:
-            if user_input["correct"]:
-                return await self.async_step_details()
-            try:
-                await self._async_light(self._address, RESET_COLOR)
-            except HomeAssistantError:
-                pass  # best effort, the person chose another bulb anyway
-            self._address = ""
-            return await self._async_show_list(show_all=False)
+    def _label_start(self, info: BluetoothServiceInfoBleak) -> str:
+        """The colour a bulb shows, or its name if it could not be coloured."""
+        return self._coloured.get(info.address) or self._display_name(info)
 
-        errors: dict[str, str] = {}
-        try:
-            await self._async_light(self._address, IDENTIFY_COLOR)
-        except HomeAssistantError:
-            errors["base"] = "cannot_connect"
-        return self.async_show_form(
-            step_id="confirm",
-            data_schema=vol.Schema({vol.Required("correct", default=True): bool}),
-            errors=errors,
+    async def _async_colour(self, shown: list[BluetoothServiceInfoBleak]) -> None:
+        """Light every listed bulb in its own colour, one after the other.
+
+        A bulb that does not react (not reset, out of reach) just keeps its
+        name in the list.
+        """
+        await self._async_reset_colours()
+        for info, (name, color) in zip(shown, PICK_COLORS):
+            try:
+                await self._async_light(info.address, color)
+            except HomeAssistantError:
+                continue
+            self._coloured[info.address] = name
+        self._start_reset_timer()
+
+    def _start_reset_timer(self) -> None:
+        self._stop_reset_timer()
+        if not self._coloured:
+            return
+
+        async def _later(_now: Any) -> None:
+            self._cancel_reset = None
+            await self._async_reset_colours()
+
+        self._cancel_reset = async_call_later(
+            self.hass, PICK_RESET_SECONDS, _later
         )
+
+    def _stop_reset_timer(self) -> None:
+        if self._cancel_reset is not None:
+            self._cancel_reset()
+            self._cancel_reset = None
+
+    async def _async_reset_colours(self, keep: str | None = None) -> None:
+        """Turn the coloured bulbs white again, except the picked one."""
+        for address in list(self._coloured):
+            if address == keep:
+                continue
+            self._coloured.pop(address)
+            try:
+                await self._async_light(address, RESET_COLOR)
+            except HomeAssistantError:
+                pass  # best effort
+
+    @callback
+    def async_remove(self) -> None:
+        """The dialog was closed: turn bulbs that are still coloured white."""
+        self._stop_reset_timer()
+        if self._coloured:
+            self.hass.async_create_task(self._async_reset_colours())
 
     async def async_step_details(
         self, user_input: dict[str, Any] | None = None
@@ -352,6 +390,7 @@ class BulbSubentryFlow(ConfigSubentryFlow):
                     except HomeAssistantError:
                         errors["base"] = "cannot_connect"
                 if not errors:
+                    self._coloured.clear()
                     return self.async_create_entry(
                         title=user_input[CONF_NAME].strip() or address,
                         data={
