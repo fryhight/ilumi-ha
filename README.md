@@ -52,3 +52,7 @@ Several bulbs with the same effect do not run in step, each starts when its list
 - A very short power cut may go unnoticed. Home Assistant then still shows the old state until the next command.
 - Setting up writes a network key into the bulb. The protocol is taken from the reverse-engineered [ilumi-sdk](https://github.com/GimpyHand/ilumi-sdk), which warns that wrong setup commands can lock a bulb for good. This integration sends exactly the command that SDK sends.
 - Not affiliated with Ilumi. The logo belongs to its owners.
+
+## Settings
+
+**Parallel connections** (Ilumi entry, *Configure*): how many bulbs may be connected at the same time, 1 to 3. 1 is the default. 2 or 3 make scenes with many bulbs faster, but use more connection slots of your Bluetooth adapter or proxy.

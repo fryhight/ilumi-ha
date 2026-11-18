@@ -22,6 +22,7 @@ from homeassistant.components.bluetooth import (
 )
 from homeassistant.config_entries import (
     ConfigEntry,
+    OptionsFlow,
     ConfigFlow,
     ConfigFlowResult,
     ConfigSubentryFlow,
@@ -41,11 +42,14 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     CONF_ADDRESS,
+    CONF_CONNECTIONS,
     CONF_MODEL,
     CONF_NETWORK_KEY,
     CONF_NODE_ID,
     CONF_SETUP,
+    DEFAULT_CONNECTIONS,
     DOMAIN,
+    MAX_CONNECTIONS,
     MODEL_A19,
     MODELS,
     PICK_COLORS,
@@ -129,6 +133,12 @@ class IlumiConfigFlow(ConfigFlow, domain=DOMAIN):
         """Each bulb is a sub-entry."""
         return {SUBENTRY_BULB: BulbSubentryFlow}
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        """The settings of the integration."""
+        return IlumiOptionsFlow()
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -148,6 +158,33 @@ class IlumiConfigFlow(ConfigFlow, domain=DOMAIN):
             {vol.Required(CONF_NETWORK_KEY, default=self._new_key): str}
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+
+
+class IlumiOptionsFlow(OptionsFlow):
+    """Settings: how many bulbs may be connected at the same time."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            return self.async_create_entry(
+                data={CONF_CONNECTIONS: int(user_input[CONF_CONNECTIONS])}
+            )
+        current = self.config_entry.options.get(CONF_CONNECTIONS, DEFAULT_CONNECTIONS)
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_CONNECTIONS, default=str(current)): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[
+                            SelectOptionDict(value=str(n), label=str(n))
+                            for n in range(1, MAX_CONNECTIONS + 1)
+                        ],
+                        mode=SelectSelectorMode.DROPDOWN,
+                    )
+                )
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=schema)
 
 
 class BulbSubentryFlow(ConfigSubentryFlow):
@@ -313,12 +350,14 @@ class BulbSubentryFlow(ConfigSubentryFlow):
         name in the list.
         """
         await self._async_reset_colours()
-        for info, (name, color) in zip(shown, PICK_COLORS):
-            try:
-                await self._async_light(info.address, color)
-            except HomeAssistantError:
-                continue
-            self._coloured[info.address] = name
+        pairs = list(zip(shown, PICK_COLORS))
+        results = await asyncio.gather(
+            *(self._async_light(info.address, color) for info, (_, color) in pairs),
+            return_exceptions=True,
+        )
+        for (info, (name, _)), result in zip(pairs, results):
+            if not isinstance(result, Exception):
+                self._coloured[info.address] = name
         self._start_reset_timer()
 
     def _start_reset_timer(self) -> None:

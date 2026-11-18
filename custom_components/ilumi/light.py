@@ -63,6 +63,9 @@ POWER_UP_BRIGHTNESS = 255
 PRESENCE_CHECK_SECONDS = 15
 
 
+PARALLEL_UPDATES = 0  # commands to different bulbs may run at the same time
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,

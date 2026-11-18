@@ -68,5 +68,16 @@
         "reconfigure_successful": "The bulb was changed."
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ilumi settings",
+        "description": "How many bulbs may be connected at the same time. 1 is the gentlest for your Bluetooth adapter or proxy. 2 or 3 make scenes with many bulbs faster. Everything on the same adapter shares its connection slots (an ESPHome Bluetooth proxy has 3 by default), so with 3 other Bluetooth devices may find no free slot.",
+        "data": {
+          "connections": "Parallel connections"
+        }
+      }
+    }
   }
 }

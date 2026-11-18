@@ -23,6 +23,10 @@ CHAR_UUID = "f000f0c1-0451-4000-b000-000000000000"
 # The connection is dropped this long after the last command so that the
 # Bluetooth proxy slot is free again for other devices.
 IDLE_DISCONNECT_SECONDS = 6
+# Option: how many bulbs may be connected at the same time.
+CONF_CONNECTIONS = "connections"
+DEFAULT_CONNECTIONS = 1
+MAX_CONNECTIONS = 3
 # Pause between two packets that belong to one user action.
 COMMAND_GAP_SECONDS = 0.3
 # Fade time for on/off in milliseconds.

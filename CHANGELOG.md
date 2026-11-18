@@ -1,9 +1,10 @@
 # Changelog
 
-## 0.5.0
+## 0.6.0
 
 **New**
-- **Add bulb:** every reset bulb in the list now lights up in its own colour (red, green, blue, yellow, cyan, magenta, violet) and the list shows that colour in front of the address, for example `Red (E1:71:DA:73:0A:E1, -60 dBm)`. Pick the colour of the bulb you want. The other bulbs turn white again. If you close the dialog without picking, the bulbs turn white by themselves. A bulb without a colour was not reset or could not be reached.
+- **Add bulb:** every reset bulb in the list lights up in its own colour (red, green, blue, yellow, cyan, magenta, violet) and the list shows that colour in front of the address, for example `Red (E1:71:DA:73:0A:E1, -60 dBm)`. Pick the colour of the bulb you want. The other bulbs turn white again. If you close the dialog without picking, the bulbs turn white by themselves. A bulb without a colour was not reset or could not be reached.
+- **Parallel connections:** new setting on the Ilumi entry (*Configure*), 1 to 3. With 2 or 3, several bulbs are connected at the same time, so scenes with many bulbs switch faster. The default is 1, as before. A Bluetooth proxy has a limited number of connection slots (3 for an ESPHome proxy), so with 3 other Bluetooth devices may find no free slot.
 
 ## 0.4.6
 

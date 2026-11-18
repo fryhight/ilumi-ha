@@ -10,7 +10,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
 
-from .const import CONF_ADDRESS, DOMAIN
+from .const import CONF_ADDRESS, CONF_CONNECTIONS, DEFAULT_CONNECTIONS, DOMAIN
 from .manager import async_get_manager
 
 PLATFORMS: list[Platform] = [Platform.LIGHT]
@@ -25,7 +25,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "This is an entry from an older version, one entry per bulb. "
             "Delete it and add the Ilumi integration again, then add the bulb under it."
         )
-    await async_get_manager(hass)
+    manager = await async_get_manager(hass)
+    manager.set_connections(entry.options.get(CONF_CONNECTIONS, DEFAULT_CONNECTIONS))
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

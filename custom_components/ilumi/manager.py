@@ -1,9 +1,10 @@
-"""Serialised Bluetooth access to Ilumi bulbs.
+"""Bluetooth access to Ilumi bulbs.
 
-Only one bulb is connected at any time. That keeps the load on the
-Bluetooth proxy at a single connection slot, no matter how many bulbs
-are set up. Home Assistant's Bluetooth stack picks the best adapter or
-proxy for the connection by itself.
+By default only one bulb is connected at any time. That keeps the load on
+the Bluetooth proxy at a single connection slot, no matter how many bulbs
+are set up. The setting "Parallel connections" allows up to three bulbs to be
+connected at once, which makes scenes with many bulbs faster. Home Assistant's
+Bluetooth stack picks the best adapter or proxy for each connection by itself.
 """
 from __future__ import annotations
 
@@ -29,6 +30,7 @@ from .const import (
     DOMAIN,
     COMMAND_GAP_SECONDS,
     IDLE_DISCONNECT_SECONDS,
+    MAX_CONNECTIONS,
     SEQ_STORAGE_KEY,
     SEQ_STORAGE_VERSION,
 )
@@ -47,19 +49,35 @@ def _ignore_notification(_sender: Any, _data: bytearray) -> None:
     """The SDK subscribes to notifications, so we do too. Content is unused."""
 
 
+class _Slot:
+    """One connection that serves one bulb at a time."""
+
+    def __init__(self) -> None:
+        self.lock = asyncio.Lock()
+        self.client: Any = None
+        self.address: str | None = None
+        self.idle_cancel: CALLBACK_TYPE | None = None
+        self.pending = 0  # sends that wait for or hold this slot
+
+
 class IlumiManager:
-    """Owns the one active BLE connection and the shared sequence counter."""
+    """Owns the BLE connections and the shared sequence counter."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
         self._store: Store = Store(hass, SEQ_STORAGE_VERSION, SEQ_STORAGE_KEY)
-        self._lock = asyncio.Lock()
-        self._client: Any = None
-        self._address: str | None = None
-        self._idle_cancel: CALLBACK_TYPE | None = None
+        self._slots: list[_Slot] = [_Slot()]
+        # The slot that serves a bulb, so one bulb never has two connections.
+        self._assigned: dict[str, _Slot] = {}
         # One counter for all bulbs, like the SDK, which keeps a single
         # seq_num for the whole network.
         self._seq = 0
+
+    def set_connections(self, count: int) -> None:
+        """Set how many bulbs may be connected at once (used at setup)."""
+        count = max(1, min(count, MAX_CONNECTIONS))
+        while len(self._slots) < count:
+            self._slots.append(_Slot())
 
     async def async_load(self) -> None:
         """Restore the sequence counter from storage."""
@@ -77,68 +95,95 @@ class IlumiManager:
         self._store.async_delay_save(self._data_to_save, 10)
         return seq
 
+    def _pick_slot(self, address: str) -> _Slot:
+        """Choose the slot for a bulb. Runs without awaiting, so it is race free."""
+        slot = self._assigned.get(address)
+        if slot is not None:
+            return slot
+        free = [s for s in self._slots if s.pending == 0]
+        # Prefer a slot that has no bulb yet, then one that is just idle.
+        free.sort(key=lambda s: s.address is not None)
+        slot = free[0] if free else min(self._slots, key=lambda s: s.pending)
+        if slot.pending == 0:
+            for known, owner in list(self._assigned.items()):
+                if owner is slot:
+                    del self._assigned[known]
+        self._assigned[address] = slot
+        return slot
+
     async def async_send(self, address: str, packets: list[Packet]) -> None:
         """Send packets to one bulb, one after the other.
 
         Raises HomeAssistantError if the bulb cannot be reached.
         """
-        async with self._lock:
-            self._cancel_idle()
-            last_error: Exception | None = None
-            for attempt in range(2):
-                try:
-                    client = await self._async_ensure_connected(address)
-                    previous_was_chunked = False
-                    for index, (factory, response) in enumerate(packets):
-                        if index:
-                            await asyncio.sleep(
-                                CHUNK_DONE_SECONDS
-                                if previous_was_chunked
-                                else COMMAND_GAP_SECONDS
-                            )
-                        built = factory(self._next_seq())
-                        items = built if isinstance(built, list) else [built]
-                        if isinstance(built, list):
-                            for _ in built:
-                                self._next_seq()  # one number per chunk
-                        for number, data in enumerate(items):
-                            if number:
-                                await asyncio.sleep(CHUNK_GAP_SECONDS)
-                            await client.write_gatt_char(
-                                CHAR_UUID, data, response=response
-                            )
-                        previous_was_chunked = len(items) > 1
-                    last_error = None
-                    break
-                except (BleakError, asyncio.TimeoutError, OSError) as err:
-                    last_error = err
-                    _LOGGER.debug(
-                        "Attempt %s to reach Ilumi bulb %s failed: %s",
-                        attempt + 1,
-                        address,
-                        err,
-                    )
-                    await self._async_disconnect()
-            if last_error is not None:
-                raise HomeAssistantError(
-                    f"Could not send command to Ilumi bulb {address}: {last_error}"
-                ) from last_error
-            self._schedule_idle_disconnect()
+        slot = self._pick_slot(address)
+        slot.pending += 1
+        try:
+            async with slot.lock:
+                await self._async_send_locked(slot, address, packets)
+        finally:
+            slot.pending -= 1
+
+    async def _async_send_locked(
+        self, slot: _Slot, address: str, packets: list[Packet]
+    ) -> None:
+        self._cancel_idle(slot)
+        last_error: Exception | None = None
+        for attempt in range(2):
+            try:
+                client = await self._async_ensure_connected(slot, address)
+                previous_was_chunked = False
+                for index, (factory, response) in enumerate(packets):
+                    if index:
+                        await asyncio.sleep(
+                            CHUNK_DONE_SECONDS
+                            if previous_was_chunked
+                            else COMMAND_GAP_SECONDS
+                        )
+                    built = factory(self._next_seq())
+                    items = built if isinstance(built, list) else [built]
+                    if isinstance(built, list):
+                        for _ in built:
+                            self._next_seq()  # one number per chunk
+                    for number, data in enumerate(items):
+                        if number:
+                            await asyncio.sleep(CHUNK_GAP_SECONDS)
+                        await client.write_gatt_char(
+                            CHAR_UUID, data, response=response
+                        )
+                    previous_was_chunked = len(items) > 1
+                last_error = None
+                break
+            except (BleakError, asyncio.TimeoutError, OSError) as err:
+                last_error = err
+                _LOGGER.debug(
+                    "Attempt %s to reach Ilumi bulb %s failed: %s",
+                    attempt + 1,
+                    address,
+                    err,
+                )
+                await self._async_disconnect(slot)
+        if last_error is not None:
+            raise HomeAssistantError(
+                f"Could not send command to Ilumi bulb {address}: {last_error}"
+            ) from last_error
+        self._schedule_idle_disconnect(slot)
 
     async def async_shutdown(self) -> None:
-        """Drop the connection, used when the last entry is unloaded."""
-        async with self._lock:
-            self._cancel_idle()
-            await self._async_disconnect()
+        """Drop all connections, used when the last entry is unloaded."""
+        for slot in self._slots:
+            async with slot.lock:
+                self._cancel_idle(slot)
+                await self._async_disconnect(slot)
 
-    async def _async_ensure_connected(self, address: str) -> Any:
+    async def _async_ensure_connected(self, slot: _Slot, address: str) -> Any:
         if (
-            self._client is not None
-            and self._client.is_connected
-            and self._address == address
+            slot.client is not None
+            and slot.client.is_connected
+            and slot.address == address
         ):
-            return self._client
-        await self._async_disconnect()
+            return slot.client
+        await self._async_disconnect(slot)
         device = bluetooth.async_ble_device_from_address(
             self._hass, address, connectable=True
         )
@@ -150,19 +195,19 @@ class IlumiManager:
             BleakClientWithServiceCache,
             device,
             address,
-            disconnected_callback=self._on_disconnect,
+            disconnected_callback=lambda c: self._on_disconnect(slot, c),
             max_attempts=3,
         )
         try:
             await client.start_notify(CHAR_UUID, _ignore_notification)
         except (BleakError, asyncio.TimeoutError, OSError) as err:
             _LOGGER.debug("Could not subscribe to notifications on %s: %s", address, err)
-        self._client = client
-        self._address = address
+        slot.client = client
+        slot.address = address
         return client
 
-    async def _async_disconnect(self) -> None:
-        client, self._client, self._address = self._client, None, None
+    async def _async_disconnect(self, slot: _Slot) -> None:
+        client, slot.client, slot.address = slot.client, None, None
         if client is None:
             return
         try:
@@ -170,28 +215,29 @@ class IlumiManager:
         except (BleakError, asyncio.TimeoutError, OSError) as err:
             _LOGGER.debug("Error while disconnecting: %s", err)
 
-    def _on_disconnect(self, client: Any) -> None:
-        if client is self._client:
-            _LOGGER.debug("Ilumi bulb %s disconnected", self._address)
-            self._client = None
-            self._address = None
+    def _on_disconnect(self, slot: _Slot, client: Any) -> None:
+        if client is slot.client:
+            _LOGGER.debug("Ilumi bulb %s disconnected", slot.address)
+            slot.client = None
+            slot.address = None
 
-    def _schedule_idle_disconnect(self) -> None:
-        self._cancel_idle()
-        self._idle_cancel = async_call_later(
-            self._hass, IDLE_DISCONNECT_SECONDS, self._idle_fired
+    def _schedule_idle_disconnect(self, slot: _Slot) -> None:
+        self._cancel_idle(slot)
+
+        async def _fired(_now: datetime) -> None:
+            slot.idle_cancel = None
+            async with slot.lock:
+                await self._async_disconnect(slot)
+
+        slot.idle_cancel = async_call_later(
+            self._hass, IDLE_DISCONNECT_SECONDS, _fired
         )
 
     @callback
-    def _cancel_idle(self) -> None:
-        if self._idle_cancel is not None:
-            self._idle_cancel()
-            self._idle_cancel = None
-
-    async def _idle_fired(self, _now: datetime) -> None:
-        self._idle_cancel = None
-        async with self._lock:
-            await self._async_disconnect()
+    def _cancel_idle(self, slot: _Slot) -> None:
+        if slot.idle_cancel is not None:
+            slot.idle_cancel()
+            slot.idle_cancel = None
 
 
 async def async_get_manager(hass: HomeAssistant) -> IlumiManager:
