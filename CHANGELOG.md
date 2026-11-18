@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3
+
+**Changed**
+- **Add bulb** also recognises a bulb by the Ilumi service in its advertisement, not only by its name, because Home Assistant often does not hear the name.
+- Devices without a name now show what they send besides the address (manufacturer id and service ids, e.g. `[mfr 0059; uuid f000f0c0]`). This helps to tell the bulbs apart from other devices.
+
 ## 0.4.2
 
 **Fixed**

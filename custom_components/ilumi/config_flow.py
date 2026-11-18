@@ -47,6 +47,7 @@ from .const import (
     DOMAIN,
     MODEL_A19,
     MODELS,
+    SERVICE_UUID,
     SETUP_GROUP_ID,
     SUBENTRY_BULB,
 )
@@ -72,6 +73,24 @@ def looks_like_ilumi(name: str | None) -> bool:
     if not name:
         return False
     return "ilumi" in name.lower() or name.startswith("L0") or name.startswith("Nrdic")
+
+
+def advertises_service(info: BluetoothServiceInfoBleak) -> bool:
+    """True if the device lists the Ilumi GATT service in its advertisement."""
+    uuids = getattr(info, "service_uuids", None) or []
+    return SERVICE_UUID in [str(u).lower() for u in uuids]
+
+
+def advert_details(info: BluetoothServiceInfoBleak) -> str:
+    """What else a device without a name sends, so that bulbs can be told apart."""
+    parts = []
+    manufacturers = getattr(info, "manufacturer_data", None) or {}
+    if manufacturers:
+        parts.append("mfr " + ",".join(f"{int(k):04x}" for k in manufacturers))
+    uuids = getattr(info, "service_uuids", None) or []
+    if uuids:
+        parts.append("uuid " + ",".join(str(u)[:8] for u in uuids[:3]))
+    return f" [{'; '.join(parts)}]" if parts else ""
 
 
 def has_name(info: BluetoothServiceInfoBleak) -> bool:
@@ -218,14 +237,18 @@ class BulbSubentryFlow(ConfigSubentryFlow):
             await self._async_scan()
         heard = self._heard()
         _LOGGER.debug("Ilumi: %s connectable devices heard", len(heard))
-        bulbs = [info for info in heard if looks_like_ilumi(info.name)]
+        by_name = [info for info in heard if looks_like_ilumi(info.name)]
+        by_service = [
+            info for info in heard if advertises_service(info) and info not in by_name
+        ]
+        bulbs = by_name + by_service
         unnamed = [info for info in heard if not has_name(info)]
         if show_all:
             shown = heard[:MAX_ALL_DEVICES]
         elif bulbs:
             shown = bulbs
         else:
-            # No bulb with a name. A bulb whose name was not heard looks like
+            # No bulb recognised. A bulb whose name was not heard looks like
             # any unnamed device, so those are offered, other named devices not.
             shown = unnamed
             show_all = not shown
@@ -239,7 +262,8 @@ class BulbSubentryFlow(ConfigSubentryFlow):
             SelectOptionDict(
                 value=info.address,
                 label=f"{info.name if has_name(info) else self._label('ohne Namen', 'no name')} "
-                f"({info.address}, {info.rssi} dBm)",
+                f"({info.address}, {info.rssi} dBm)"
+                + ("" if has_name(info) else advert_details(info)),
             )
             for info in shown
         ]
